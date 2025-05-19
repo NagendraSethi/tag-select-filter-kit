@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,7 +46,7 @@ export interface PodData {
   name: string;
   description: string;
   functionalArea: string;
-  builders: User[];
+  editorContentBuilder: string;
   productOwners: User[];
   stakeholders: User[];
 }
@@ -64,9 +63,47 @@ const defaultPodData: PodData = {
   name: '',
   description: '',
   functionalArea: '',
-  builders: [],
+  editorContentBuilder: '<p></p>',
   productOwners: [],
   stakeholders: [],
+};
+
+// Helper function to extract users from HTML content
+const extractUsersFromHTML = (htmlContent: string): User[] => {
+  const users: User[] = [];
+  
+  if (!htmlContent) return users;
+  
+  // Create a temporary DOM element to parse the HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+  
+  // Find all mention spans
+  const mentionSpans = tempDiv.querySelectorAll('span.mention');
+  
+  mentionSpans.forEach(span => {
+    const email = span.getAttribute('data-id') || '';
+    const fullValue = span.getAttribute('data-value') || '';
+    
+    // Extract name and role from the data-value
+    let name = fullValue;
+    let role = undefined;
+    
+    const roleMatch = fullValue.match(/(.+?)(\s+\((.+?)\))?$/);
+    if (roleMatch) {
+      name = roleMatch[1];
+      role = roleMatch[3];
+    }
+    
+    users.push({
+      id: email, // Using email as ID
+      email,
+      name,
+      role
+    });
+  });
+  
+  return users;
 };
 
 export const PodForm: React.FC<PodFormProps> = ({
@@ -78,12 +115,17 @@ export const PodForm: React.FC<PodFormProps> = ({
 }) => {
   const [podData, setPodData] = useState<PodData>(initialData || defaultPodData);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // Extract users from editorContentBuilder for the UserSelector component
+  const [selectedBuilders, setSelectedBuilders] = useState<User[]>([]);
 
   useEffect(() => {
     if (initialData) {
       setPodData(initialData);
+      setSelectedBuilders(extractUsersFromHTML(initialData.editorContentBuilder));
     } else {
       setPodData(defaultPodData);
+      setSelectedBuilders([]);
     }
   }, [initialData, isOpen]);
 
@@ -103,24 +145,116 @@ export const PodForm: React.FC<PodFormProps> = ({
     }
   };
 
-  const handleAddUser = (userType: 'builders' | 'productOwners' | 'stakeholders', user: User) => {
-    // Check if user already exists in any category
-    const isInBuilders = podData.builders.some(u => u.id === user.id);
-    const isInProductOwners = podData.productOwners.some(u => u.id === user.id);
-    const isInStakeholders = podData.stakeholders.some(u => u.id === user.id);
+  // Function to add a user mention to the editor content
+  const handleAddUser = (userType: 'productOwners' | 'stakeholders', user: User) => {
+    if (userType === 'productOwners' || userType === 'stakeholders') {
+      // For product owners and stakeholders, keep the original logic
+      const isInProductOwners = podData.productOwners.some(u => u.id === user.id);
+      const isInStakeholders = podData.stakeholders.some(u => u.id === user.id);
+      
+      if (isInProductOwners || isInStakeholders) {
+        toast.error("User already exists in one of the categories");
+        return;
+      }
+      
+      setPodData(prev => ({
+        ...prev,
+        [userType]: [...prev[userType], user]
+      }));
+    }
+  };
+
+  // Function to add a builder user to the editorContentBuilder
+  const handleAddBuilder = (user: User) => {
+    // Check if user is already in builders
+    const existingBuilders = extractUsersFromHTML(podData.editorContentBuilder);
+    const isAlreadyBuilder = existingBuilders.some(u => u.id === user.id);
     
-    if (isInBuilders || isInProductOwners || isInStakeholders) {
-      toast.error("User already exists in one of the categories");
+    if (isAlreadyBuilder) {
+      toast.error("User already exists as a builder");
       return;
+    }
+    
+    // Prepare the user's display name with role if present
+    const displayValue = user.role ? `${user.name} (${user.role})` : user.name;
+    
+    // Create a new span for the user mention
+    const mentionSpan = `<span class="mention" data-index="0" data-denotation-char="@" data-id="${user.email}" data-value="${displayValue}">﻿<span contenteditable="false"><span class="ql-mention-denotation-char">@</span>${displayValue}</span>﻿</span>`;
+    
+    // Update the editor content by adding the new mention
+    let newEditorContent = podData.editorContentBuilder;
+    
+    if (newEditorContent === '<p></p>' || newEditorContent === '') {
+      newEditorContent = `<p>${mentionSpan}</p>`;
+    } else {
+      // If there's content, we need to insert it properly inside the <p> tag
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = newEditorContent;
+      const pTag = tempDiv.querySelector('p');
+      
+      if (pTag) {
+        // Add a space before the new mention if there's content already
+        if (pTag.innerHTML.trim() !== '') {
+          pTag.innerHTML += ' ' + mentionSpan;
+        } else {
+          pTag.innerHTML = mentionSpan;
+        }
+        newEditorContent = tempDiv.innerHTML;
+      } else {
+        // If for some reason there's no p tag, wrap in one
+        newEditorContent = `<p>${newEditorContent} ${mentionSpan}</p>`;
+      }
     }
     
     setPodData(prev => ({
       ...prev,
-      [userType]: [...prev[userType], user]
+      editorContentBuilder: newEditorContent
     }));
+    
+    // Update the selected builders view
+    setSelectedBuilders([...existingBuilders, user]);
   };
 
-  const handleRemoveUser = (userType: 'builders' | 'productOwners' | 'stakeholders', userId: string) => {
+  // Function to remove a user from the editorContentBuilder
+  const handleRemoveBuilder = (userId: string) => {
+    // Get email from userId since we're using email as ID
+    const email = userId;
+    
+    // Create a temporary DOM element to parse and modify the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = podData.editorContentBuilder;
+    
+    // Find the mention span with the matching data-id
+    const mentionSpan = tempDiv.querySelector(`span.mention[data-id="${email}"]`);
+    
+    if (mentionSpan) {
+      // Remove the mention span
+      const parent = mentionSpan.parentNode;
+      if (parent) {
+        // If there's text before or after (like a space), clean it up
+        let contentToRemove = mentionSpan;
+        
+        // If the next node is a text node with just a space, remove it too
+        if (mentionSpan.nextSibling && mentionSpan.nextSibling.nodeType === 3 && mentionSpan.nextSibling.nodeValue?.trim() === '') {
+          parent.removeChild(mentionSpan.nextSibling);
+        }
+        
+        parent.removeChild(contentToRemove);
+        
+        // Update the pod data with the new HTML
+        const newEditorContent = tempDiv.innerHTML;
+        setPodData(prev => ({
+          ...prev,
+          editorContentBuilder: newEditorContent
+        }));
+        
+        // Update the selected builders view
+        setSelectedBuilders(prev => prev.filter(u => u.id !== userId));
+      }
+    }
+  };
+
+  const handleRemoveUser = (userType: 'productOwners' | 'stakeholders', userId: string) => {
     setPodData(prev => ({
       ...prev,
       [userType]: prev[userType].filter(user => user.id !== userId)
@@ -138,8 +272,10 @@ export const PodForm: React.FC<PodFormProps> = ({
       newErrors.description = 'Description is required';
     }
     
-    if (podData.builders.length === 0) {
-      newErrors.builders = 'At least one builder is required';
+    // Check if there's at least one builder in the editor content
+    const builders = extractUsersFromHTML(podData.editorContentBuilder);
+    if (builders.length === 0) {
+      newErrors.editorContentBuilder = 'At least one builder is required';
     }
     
     setErrors(newErrors);
@@ -218,11 +354,11 @@ export const PodForm: React.FC<PodFormProps> = ({
               </Label>
               <Card className="p-4">
                 <UserSelector 
-                  onSelectUser={(user) => handleAddUser('builders', user)} 
-                  selectedUsers={podData.builders}
-                  onRemoveUser={(userId) => handleRemoveUser('builders', userId)}
+                  onSelectUser={(user) => handleAddBuilder(user)} 
+                  selectedUsers={selectedBuilders}
+                  onRemoveUser={(userId) => handleRemoveBuilder(userId)}
                 />
-                {errors.builders && <p className="text-sm text-red-500 mt-2">{errors.builders}</p>}
+                {errors.editorContentBuilder && <p className="text-sm text-red-500 mt-2">{errors.editorContentBuilder}</p>}
               </Card>
             </div>
             
