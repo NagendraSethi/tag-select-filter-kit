@@ -1,7 +1,7 @@
 
 import { createRoot } from 'react-dom/client';
 import React from 'react';
-import App from './App.js';
+import App from './App.js';  // Explicitly reference .js extension
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
