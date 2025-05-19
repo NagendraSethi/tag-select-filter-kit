@@ -1,7 +1,7 @@
 
 import { createRoot } from 'react-dom/client';
 import React from 'react';
-import App from './App.js';  // Explicitly reference .js extension
+import App from './App.tsx';  // Updated to reference the TypeScript version
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -10,7 +10,7 @@ console.log('App initializing...');
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
-  createRoot(rootElement).render(<App />);
+  createRoot(rootElement).render(React.createElement(App));  // Using createElement instead of JSX
 } else {
   console.error('Root element not found!');
 }
