@@ -1,6 +1,6 @@
 
 import React from 'react';
-import PodsManagement from '../components/PodsManagement';
+import { PodsManagement } from '../components/PodsManagement';
 
 const Index = () => {
   return React.createElement(PodsManagement);
