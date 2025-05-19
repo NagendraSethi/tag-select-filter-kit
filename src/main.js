@@ -1,7 +1,7 @@
 
 import { createRoot } from 'react-dom/client';
 import React from 'react';
-import App from './App.tsx';  // Updated to reference the TypeScript version
+import App from './App.js';  // Using the JavaScript version
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
