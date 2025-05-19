@@ -7,20 +7,20 @@ import './UserTag.css';
 const UserTag = ({ user, onRemove }) => {
   return (
     <div className="user-tag">
-      <div className="user-info">
-        <div className="user-name">{user.name}</div>
-        <div className="user-email">{user.email}</div>
-        {user.role && <div className="user-role">{user.role}</div>}
+      <div className="user-tag-content">
+        <span className="user-tag-username">@{user.email.split('@')[0]}</span>
+        {user.role && <span className="user-tag-role"> ({user.role})</span>}
       </div>
-      {onRemove && (
-        <button 
-          className="remove-btn" 
-          onClick={() => onRemove(user)}
-          aria-label="Remove user"
-        >
-          <FontAwesomeIcon icon={faTimes} />
-        </button>
-      )}
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          onRemove();
+        }}
+        className="user-tag-remove-btn"
+        title="Remove user"
+      >
+        <FontAwesomeIcon icon={faTimes} />
+      </button>
     </div>
   );
 };
